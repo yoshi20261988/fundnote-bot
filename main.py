@@ -1,41 +1,33 @@
-import os
 import re
 import requests
 from bs4 import BeautifulSoup
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
 }
-
-TARGETS = [
-    {"short_name": "かいほう", "keyword": "Kaihou"},
-    {"short_name": "あけぼの", "keyword": "akebono"},
-]
 
 
 def main():
     url = "https://www.fundnote.co.jp/base-price-history/"
     res = requests.get(url, headers=HEADERS, timeout=15)
-    res.encoding = "utf-8"
     soup = BeautifulSoup(res.text, "html.parser")
-    clean_text = " ".join(soup.get_text().split())
 
-    # 1. サイト上の「基準日」や「基準価額」の周辺文字を表示
-    idx = clean_text.find("基準")
-    if idx != -1:
-        print("【基準周辺の文字】:", clean_text[idx : idx + 200])
-    else:
-        print("【基準という文字は見つかりませんでした】")
+    print("--- スクリプトとAPIの調査 ---")
+    for s in soup.find_all("script"):
+        src = s.get("src", "")
+        # fundnoteのテーマやカスタムスクリプトを表示
+        if src and (
+            "fundnote" in src or "theme" in src or "main" in src or "app" in src
+        ):
+            print("【外部スクリプト】:", src)
 
-    # 2. 「Kaihou」の周辺文字を表示
-    for t in TARGETS:
-        if t["keyword"] in clean_text:
-            sub = clean_text.split(t["keyword"])[1][:200]
-            print(f"【{t['short_name']}の直後の文字】:", sub)
-        else:
-            print(f"【{t['short_name']}のキーワードが見つかりません】")
+        # インラインスクリプト内のURLやAPI設定を探す
+        if s.string and (
+            "api" in s.string.lower()
+            or "ajax" in s.string.lower()
+            or "json" in s.string.lower()
+        ):
+            print("【埋め込み設定】:", s.string.strip()[:200])
 
 
 if __name__ == "__main__":
