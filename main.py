@@ -47,7 +47,6 @@ TARGET_FUNDS = [
 
 
 def fetch_fund_data(slug):
-    """判明した公式APIエンドポイントを直接叩いて最新データを取得"""
     url = f"{API_URL}?fund={slug}"
     res = requests.get(url, headers=HEADERS, timeout=10)
     if res.status_code != 200:
@@ -57,12 +56,10 @@ def fetch_fund_data(slug):
     if not isinstance(data, list):
         return None
 
-    # 公式スクリプトと同じロジックで active な最新エントリを取得
     for item in data:
         if item.get("active") is True:
             return item
 
-    # activeフラグがない場合は、base_priceが存在する最新のものを取得
     valid = [d for d in data if d.get("base_price") is not None]
     if valid:
         return sorted(valid, key=lambda x: str(x.get("date", "")))[-1]
@@ -85,19 +82,16 @@ def main():
 
             price_int = int(item["base_price"])
 
-            # 前日比(%)
             pc = item.get("price_change") or {}
             pct_val = pc.get("percentage")
             daily_pct = float(pct_val) if pct_val is not None else 0.0
 
-            # 日付（例: 2026-11-09 → 11/9）
             date_raw = str(item.get("date", ""))
             if date_raw and not latest_date_str:
                 parts = date_raw.split("-")
                 if len(parts) >= 3:
                     latest_date_str = f"{int(parts[1])}/{int(parts[2])}"
 
-            # 昨年末比・設定来の計算
             base_p = fund["base_price"]
             diff_pct = ((price_int - base_p) / base_p) * 100
 
@@ -134,16 +128,25 @@ def main():
     tweet_text = f"【fundnote】{latest_date_str}\n" + "\n".join(fund_lines)
     print("--- 投稿内容 ---\n" + tweet_text)
 
-    # Xへ投稿
+    # Xへ投稿（前後の余計な空白を自動カット）
+    x_api_key = os.environ.get("X_API_KEY", "").strip()
+    x_api_secret = os.environ.get("X_API_KEY_SECRET", "").strip()
+    x_token = os.environ.get("X_ACCESS_TOKEN", "").strip()
+    x_token_secret = os.environ.get("X_ACCESS_TOKEN_SECRET", "").strip()
+
+    print(
+        f"キー文字数確認: APIKey={len(x_api_key)}, Token={len(x_token)}"
+    )
+
     client = tweepy.Client(
-        consumer_key=os.environ["X_API_KEY"],
-        consumer_secret=os.environ["X_API_KEY_SECRET"],
-        access_token=os.environ["X_ACCESS_TOKEN"],
-        access_token_secret=os.environ["X_ACCESS_TOKEN_SECRET"],
+        consumer_key=x_api_key,
+        consumer_secret=x_api_secret,
+        access_token=x_token,
+        access_token_secret=x_token_secret,
     )
     client.create_tweet(text=tweet_text)
 
-    # 日付を保存
+    # 投稿成功した日付を記録
     if latest_date_str != "最新":
         with open("last_date.txt", "w", encoding="utf-8") as f:
             f.write(latest_date_str)
